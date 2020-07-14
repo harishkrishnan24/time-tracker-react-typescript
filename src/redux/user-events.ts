@@ -113,6 +113,76 @@ export const selectUserEventsArray = (rootState: RootState) => {
   return state.allIds.map((id) => state.byIds[id]);
 };
 
+const DELETE_REQUEST = 'userEvents/delete_request';
+const DELETE_SUCCESS = 'userEvents/delete_success';
+const DELETE_FAILURE = 'userEvents/delete_failure';
+
+interface DeleteRequestAction extends Action<typeof DELETE_REQUEST> {}
+interface DeleteSuccessAction extends Action<typeof DELETE_SUCCESS> {
+  payload: {
+    id: UserEvent['id'];
+  };
+}
+interface DeleteFailureAction extends Action<typeof DELETE_FAILURE> {}
+
+export const deleteUserEvent = (
+  id: UserEvent['id']
+): ThunkAction<
+  Promise<void>,
+  RootState,
+  undefined,
+  DeleteRequestAction | DeleteSuccessAction | DeleteFailureAction
+> => async (dispatch) => {
+  dispatch({ type: DELETE_REQUEST });
+
+  try {
+    const response = await fetch(`http://localhost:3001/events/${id}`, {
+      method: 'DELETE',
+    });
+    if (response) {
+      dispatch({ type: DELETE_SUCCESS, payload: { id } });
+    }
+  } catch (e) {
+    dispatch({ type: DELETE_FAILURE });
+  }
+};
+
+const UPDATE_REQUEST = 'userEvents/update_request';
+const UPDATE_SUCCESS = 'userEvents/update_success';
+const UPDATE_FAILURE = 'userEvents/update_failure';
+interface UpdateRequestAction extends Action<typeof UPDATE_REQUEST> {}
+interface UpdateSuccessAction extends Action<typeof UPDATE_SUCCESS> {
+  payload: { event: UserEvent };
+}
+interface UpdateFailureAction extends Action<typeof UPDATE_FAILURE> {}
+
+export const updateUserEvent = (
+  event: UserEvent
+): ThunkAction<
+  Promise<void>,
+  RootState,
+  undefined,
+  UpdateRequestAction | UpdateSuccessAction | UpdateFailureAction
+> => async (dispatch) => {
+  dispatch({ type: UPDATE_REQUEST });
+
+  try {
+    const resposne = await fetch(`http://localhost:3001/events/${event.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(event),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const updatedEvent: UserEvent = await resposne.json();
+
+    dispatch({ type: UPDATE_SUCCESS, payload: { event: updatedEvent } });
+  } catch (e) {
+    dispatch({ type: UPDATE_FAILURE });
+  }
+};
+
 const initialState: UserEventsState = {
   byIds: {},
   allIds: [],
@@ -120,7 +190,11 @@ const initialState: UserEventsState = {
 
 const userEventsReducer = (
   state: UserEventsState = initialState,
-  action: LoadSuccessAction | CreateSuccessAction
+  action:
+    | LoadSuccessAction
+    | CreateSuccessAction
+    | DeleteSuccessAction
+    | UpdateSuccessAction
 ) => {
   switch (action.type) {
     case LOAD_SUCCESS:
@@ -139,6 +213,22 @@ const userEventsReducer = (
         ...state,
         allIds: [...state.allIds, event.id],
         byIds: { ...state.byIds, [event.id]: event },
+      };
+    case DELETE_SUCCESS:
+      const { id } = action.payload;
+      const newState = {
+        ...state,
+        byIds: { ...state.byIds },
+        allIds: state.allIds.filter((eventId) => eventId !== id),
+      };
+      delete newState.byIds[id];
+
+      return newState;
+    case UPDATE_SUCCESS:
+      const { event: updatedEvent } = action.payload;
+      return {
+        ...state,
+        byIds: { ...state.byIds, [updatedEvent.id]: updatedEvent },
       };
     default:
       return state;
